@@ -9,19 +9,21 @@ const CosmicaApp = () => {
   const [favorites, setFavorites] = useState([]);
   const [notebook, setNotebook] = useState('');
   const [language, setLanguage] = useState('en');
+  const [translatedUI, setTranslatedUI] = useState(null);
+  const [translatedAPOD, setTranslatedAPOD] = useState(null);
   const [eulogy, setEulogy] = useState('');
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [user, setUser] = useState({ name: 'Space Explorer', achievements: [] });
 
   // NASA API Key - Replace with your actual key
-  const NASA_API_KEY = 'DEMO_KEY'; // Get free key at api.nasa.gov
+  const NASA_API_KEY = 'RZbxYb1gGIN6JPODNcTugjJvuYKAoz61zTBTteDd'; // Get free key at api.nasa.gov
 
   // Translations
   const translations = {
     en: {
-      title: 'Cosmica',
-      subtitle: 'Your Daily Portal Into the Universe',
+      title: 'A Star A Day',
+      subtitle: '...Keeps the Boredom Demons at Bay :)',
       home: 'Home',
       missions: 'Missions',
       favorites: 'Favorites',
@@ -48,7 +50,7 @@ const CosmicaApp = () => {
       writeYourThoughts: 'உங்கள் பிரபஞ்ச எண்ணங்களை எழுதுங்கள்...',
     },
     es: {
-      title: 'Cosmica',
+      title: 'A Star A Day',
       subtitle: 'Tu Portal Diario al Universo',
       home: 'Inicio',
       missions: 'Misiones',
@@ -63,7 +65,9 @@ const CosmicaApp = () => {
     }
   };
 
-  const t = translations[language];
+  // const t = translations[language];
+  // Use translated UI or fallback to hardcoded
+  const t = translatedUI || translations[language] || translations['en'];
 
   // Mock NASA Missions Data
   const mockMissions = [
@@ -117,61 +121,172 @@ const CosmicaApp = () => {
     }
   ];
 
+  // At top with other state
+const [userId] = useState('user_' + Math.random().toString(36).substr(2, 9));
+
+// Add save notebook function
+const saveNotebook = async (text) => {
+  try {
+    await fetch('http://localhost:3001/api/notebook', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, notebook: text })
+    });
+  } catch (error) {
+    console.error('Failed to save notebook:', error);
+  }
+};
+
+// Update notebook on change with debounce
+useEffect(() => {
+  const timer = setTimeout(() => {
+    if (notebook) {
+      saveNotebook(notebook);
+    }
+  }, 1000); // Save 1 second after user stops typing
+
+  return () => clearTimeout(timer);
+}, [notebook]);
+
   // Fetch APOD data
   useEffect(() => {
     fetchAPOD(selectedDate);
     setMissions(mockMissions);
   }, [selectedDate]);
 
-  const fetchAPOD = async (date) => {
-    setLoading(true);
-    try {
-      // In production, this would call your backend endpoint
-      // which then calls NASA API securely
-      const response = await fetch(
-        `https://api.nasa.gov/planetary/apod?api_key=${NASA_API_KEY}&date=${date}`
-      );
-      const data = await response.json();
-      setApodData(data);
-      
-      // Achievement tracking
-      if (!user.achievements.includes('first_apod')) {
-        setUser(prev => ({
-          ...prev,
-          achievements: [...prev.achievements, 'first_apod']
-        }));
-      }
-    } catch (error) {
-      console.error('Error fetching APOD:', error);
-      // Fallback data
-      setApodData({
-        title: 'Cosmic Wonder',
-        explanation: 'Unable to load today\'s image. The universe is vast and mysterious.',
-        url: 'https://apod.nasa.gov/apod/image/2312/M16_HubbleGendler_2200.jpg'
-      });
+  // Translate text using backend API
+const translateText = async (text, targetLang) => {
+  try {
+    const response = await fetch('http://localhost:3001/api/translate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        text: text,
+        targetLang: targetLang
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error('Translation failed');
     }
-    setLoading(false);
+
+    const data = await response.json();
+    return data.translatedText;
+  } catch (error) {
+    console.error('Translation error:', error);
+    return text; // Return original if translation fails
+  }
+};
+
+// Translate UI text
+const translateUI = async (targetLang) => {
+  if (targetLang === 'en') {
+    setTranslatedUI(null);
+    return;
+  }
+
+  const uiTexts = {
+    title: 'Cosmica',
+    subtitle: 'Your Daily Portal Into the Universe',
+    home: 'Home',
+    missions: 'Missions',
+    favorites: 'Favorites',
+    notebook: 'Star Notebook',
+    apodTitle: 'Astronomy Picture of the Day',
+    generateEulogy: 'Generate Cosmic Eulogy',
+    saveToFavorites: 'Save to Favorites',
+    explanation: 'Explanation',
+    search: 'Search missions...',
+    writeYourThoughts: 'Write your cosmic thoughts...',
   };
 
-  // Generate AI Eulogy (Mock - In production, call your backend)
-  const generateEulogy = async () => {
-    setLoading(true);
-    // This would call your backend endpoint which uses OpenAI API
-    // Backend endpoint: POST /api/generate-eulogy
-    // Body: { title, explanation, date }
+  try {
+    const translated = {};
     
-    // Mock eulogy generation
-    setTimeout(() => {
-      const mockEulogies = [
-        `In the cosmic tapestry of time, ${apodData?.title} stands as a monument to the eternal dance of light and matter. Born from the primordial chaos, this celestial wonder whispers secrets of galaxies long past, a testament to the universe's boundless creativity.`,
-        `Here lies ${apodData?.title}, a cosmic masterpiece painted with the brushstrokes of supernovae and the dreams of dying stars. In its radiant beauty, we see the universe gazing back at itself, contemplating its own magnificence across the void of space and time.`,
-        `Behold ${apodData?.title}, where physics becomes poetry and mathematics transforms into music. This celestial symphony echoes across billions of light-years, reminding us that we are not merely observers of the cosmos—we are the universe experiencing itself.`
-      ];
-      
-      setEulogy(mockEulogies[Math.floor(Math.random() * mockEulogies.length)]);
-      setLoading(false);
-    }, 2000);
-  };
+    // Translate all UI strings
+    for (const [key, text] of Object.entries(uiTexts)) {
+      const result = await translateText(text, targetLang);
+      translated[key] = result;
+    }
+    
+    setTranslatedUI(translated);
+  } catch (error) {
+    console.error('UI translation error:', error);
+  }
+};
+
+  const fetchAPOD = async (date) => {
+  setLoading(true);
+  try {
+    // Call your backend instead of NASA directly
+    const response = await fetch(
+      `http://localhost:3001/api/apod?date=${date}`
+    );
+    const data = await response.json();
+    setApodData(data);
+    
+    if (!user.achievements.includes('first_apod')) {
+      setUser(prev => ({
+        ...prev,
+        achievements: [...prev.achievements, 'first_apod']
+      }));
+    }
+
+    if (language !== 'en' && data.explanation) {
+      const translated = await translateText(data.explanation, language);
+      setApodData(prev => ({
+        ...prev,
+        explanation: translated
+      }));
+}
+  } catch (error) {
+    console.error('Error fetching APOD:', error);
+    setApodData({
+      title: 'Cosmic Wonder',
+      explanation: 'Unable to load today\'s image.',
+      url: 'https://apod.nasa.gov/apod/image/2312/M16_HubbleGendler_2200.jpg'
+    });
+  }
+  setLoading(false);
+};
+
+  // Generate AI Eulogy 
+  const generateEulogy = async () => {
+  if (!apodData) {
+    alert('Please load an APOD first!');
+    return;
+  }
+  
+  setLoading(true);
+  setEulogy(''); // Clear previous eulogy
+  
+  try {
+    const response = await fetch('http://localhost:3001/api/generate-eulogy', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        title: apodData.title,
+        explanation: apodData.explanation
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to generate eulogy');
+    }
+
+    const data = await response.json();
+    setEulogy(data.eulogy);
+  } catch (error) {
+    console.error('Error generating eulogy:', error);
+    setEulogy('Unable to generate eulogy. Make sure OpenAI API key is configured in backend/.env');
+  }
+  
+  setLoading(false);
+};
 
   // Toggle favorites
   const toggleFavorite = (item) => {
@@ -188,6 +303,41 @@ const CosmicaApp = () => {
       }
     }
   };
+
+  // Translate UI when language changes
+useEffect(() => {
+  if (language !== 'en') {
+    translateUI(language);
+  } else {
+    setTranslatedUI(null);
+    setTranslatedAPOD(null);
+  }
+}, [language]);
+
+// Translate APOD explanation when language changes
+useEffect(() => {
+  const translateAPODContent = async () => {
+    if (language !== 'en' && apodData && apodData.explanation) {
+      setLoading(true);
+      try {
+        const translatedTitle = await translateText(apodData.title, language);
+        const translatedExplanation = await translateText(apodData.explanation, language);
+        
+        setTranslatedAPOD({
+          title: translatedTitle,
+          explanation: translatedExplanation
+        });
+      } catch (error) {
+        console.error('APOD translation error:', error);
+      }
+      setLoading(false);
+    } else {
+      setTranslatedAPOD(null);
+    }
+  };
+
+  translateAPODContent();
+}, [language, apodData]);
 
   // Filter missions
   const filteredMissions = missions.filter(mission =>
@@ -265,9 +415,8 @@ const CosmicaApp = () => {
           </div>
           
           <div className="p-6 space-y-4">
-            <h3 className="text-2xl font-bold text-white">{apodData.title}</h3>
-            <p className="text-gray-300 leading-relaxed">{apodData.explanation}</p>
-            
+            <h3 className="text-2xl font-bold text-white"> {translatedAPOD?.title || apodData.title} </h3>
+            <p className="text-gray-300 leading-relaxed">{translatedAPOD?.explanation || apodData.explanation} </p>
             <div className="flex gap-3">
               <button
                 onClick={generateEulogy}
@@ -422,7 +571,7 @@ const CosmicaApp = () => {
               <p className="text-purple-300 mt-1">{t.subtitle}</p>
             </div>
             
-            <div className="flex items-center gap-4">
+            {/* <div className="flex items-center gap-4">
               <button
                 onClick={() => setLanguage(language === 'en' ? 'ta' : language === 'ta' ? 'es' : 'en')}
                 className="flex items-center gap-2 bg-purple-600/50 px-4 py-2 rounded-lg hover:bg-purple-500/50 transition-colors"
@@ -430,6 +579,32 @@ const CosmicaApp = () => {
                 <Globe className="w-5 h-5" />
                 {language.toUpperCase()}
               </button>
+            </div> */}
+            <div className="flex items-center gap-4">
+              <select
+                value={language}
+                onChange={(e) => setLanguage(e.target.value)}
+                className="bg-purple-600/50 px-4 py-2 rounded-lg hover:bg-purple-500/50 transition-colors text-white cursor-pointer"
+              >
+                <option value="en">English</option>
+                <option value="ta">தமிழ் (Tamil)</option>
+                <option value="es">Español</option>
+                <option value="fr">Français</option>
+                <option value="de">Deutsch</option>
+                <option value="zh">中文 (Chinese)</option>
+                <option value="ja">日本語 (Japanese)</option>
+                <option value="ko">한국어 (Korean)</option>
+                <option value="hi">हिन्दी (Hindi)</option>
+                <option value="ar">العربية (Arabic)</option>
+                <option value="pt">Português</option>
+                <option value="ru">Русский (Russian)</option>
+              </select>
+              <Globe className="w-5 h-5 text-purple-300" />
+              
+              {/* Translation loading indicator */}
+              {language !== 'en' && loading && (
+                <span className="text-purple-300 text-sm animate-pulse">Translating...</span>
+              )}
             </div>
           </div>
           
